@@ -1,0 +1,55 @@
+name: Update GUI.for.SingBox cask
+
+on:
+  schedule:
+    - cron: "29 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Fetch latest upstream release
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release="$(gh api repos/GUI-for-Cores/GUI.for.SingBox/releases/latest)"
+          version="$(jq -r '.tag_name | ltrimstr("v")' <<<"$release")"
+          arm_sha="$(jq -r '.assets[] | select(.name == "GUI.for.SingBox-darwin-arm64.zip") | .digest | ltrimstr("sha256:")' <<<"$release")"
+          intel_sha="$(jq -r '.assets[] | select(.name == "GUI.for.SingBox-darwin-amd64.zip") | .digest | ltrimstr("sha256:")' <<<"$release")"
+          test -n "$arm_sha" && test -n "$intel_sha"
+          {
+            echo "version=$version"
+            echo "arm_sha=$arm_sha"
+            echo "intel_sha=$intel_sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update cask definition
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          ARM_SHA: ${{ steps.release.outputs.arm_sha }}
+          INTEL_SHA: ${{ steps.release.outputs.intel_sha }}
+        run: |
+          ruby -i -pe '
+            $_.gsub!(/version "[^"]+"/, "version \"#{ENV.fetch("VERSION")}\"")
+            architecture = :arm if $_.start_with?("  on_arm do")
+            architecture = :intel if $_.start_with?("  on_intel do")
+            if $_.start_with?("    sha256 ")
+              $_.gsub!(/(?<=sha256 ")[0-9a-f]+/, architecture == :arm ? ENV.fetch("ARM_SHA") : ENV.fetch("INTEL_SHA"))
+            end
+          ' Casks/gui-for-singbox.rb
+
+      - name: Commit cask update
+        run: |
+          git diff --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/gui-for-singbox.rb
+          git commit -m "gui-for-singbox $(ruby -ne 'puts $1 if /version "([^"]+)"/' Casks/gui-for-singbox.rb)"
+          git push
