@@ -1,13 +1,13 @@
 cask "codex-manager" do
-  version "0.5.6"
+  version "0.6.0"
 
   on_arm do
-    sha256 "7e1d8b7122a21e3e58db2f042a5a52dde24280117be9c235518b6094709a400b"
+    sha256 "405cc5fbd877efc1894a74307dd0ae2296636b270371c83cbd818be00766bf0e"
 
     url "https://github.com/qxcnm/Codex-Manager/releases/download/v#{version}/CodexManager_#{version}_aarch64.dmg"
   end
   on_intel do
-    sha256 "2cc2ab83bc95c1759a39669ed712444b8a9b50538e6a9df972a3c842f5b8782b"
+    sha256 "f1b503f510dd4708df867e3e0cdb9e19cb399be39fecb716e1492acb3244ed82"
 
     url "https://github.com/qxcnm/Codex-Manager/releases/download/v#{version}/CodexManager_#{version}_x64.dmg"
   end
