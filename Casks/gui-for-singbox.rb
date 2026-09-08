@@ -1,13 +1,13 @@
 cask "gui-for-singbox" do
-  version "1.26.1"
+  version "1.27.0"
 
   on_arm do
-    sha256 "7936eccdff28316599370ab0bf174516a6cde1ecda936e52b6e1adcaac0d4a52"
+    sha256 "47ead32ad2fc0c8418a04b63e41a7fbc56c3489af2cfa5b9251cfb8f08b498db"
 
     url "https://github.com/GUI-for-Cores/GUI.for.SingBox/releases/download/v#{version}/GUI.for.SingBox-darwin-arm64.zip"
   end
   on_intel do
-    sha256 "5a489b243c1259a047ce6e7d6d483a7c250cb84b696db2a69ee7c95d0d854b07"
+    sha256 "69678579531b7189e970dba41be5568b32c2e9ec48f02a5eead5c481cef9beee"
 
     url "https://github.com/GUI-for-Cores/GUI.for.SingBox/releases/download/v#{version}/GUI.for.SingBox-darwin-amd64.zip"
   end
