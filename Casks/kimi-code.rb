@@ -1,17 +1,9 @@
 cask "kimi-code" do
-  version "1.0.2"
+  version "1.0.4"
 
-  on_arm do
-    sha256 "868e9e419508fbc8c0d0744aac3cb7ce06bde028546b64c9444dc992c753435e"
+  sha256 "ba61afaecd1c8b029c5a0d3a967b6fef24a1190fc225f46c89e5ac2a601f7ce1"
 
-    url "https://code.kimi.com/kimi-code/desktop/binaries/#{version}/KimiCode-#{version}-mac-arm64.dmg"
-  end
-  on_intel do
-    sha256 "6c380e63a9c91921171a20385653778c937de5e0de2509f883959c41319c6560"
-
-    url "https://code.kimi.com/kimi-code/desktop/binaries/#{version}/KimiCode-#{version}-mac-x64.dmg"
-  end
-
+  url "https://code.kimi.com/kimi-code/desktop/binaries/#{version}/KimiCode-#{version}-mac-arm64.dmg"
   name "Kimi Code"
   desc "AI coding agent desktop client"
   homepage "https://www.kimi.com/code"
@@ -23,6 +15,7 @@ cask "kimi-code" do
 
   auto_updates true
 
+  depends_on arch: :arm64
   depends_on macos: :monterey
 
   app "Kimi Code.app"

@@ -1,0 +1,39 @@
+name: Update Kimi Code cask
+
+on:
+  schedule:
+    # Daily at 11:37 Asia/Shanghai.
+    - cron: "37 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-kimi-code
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Check official feed and verify arm64 release archive
+        run: ruby scripts/update-kimi-code.rb
+
+      - name: Validate cask syntax
+        run: ruby -c Casks/kimi-code.rb
+
+      - name: Commit cask update
+        run: |
+          git diff --quiet -- Casks/kimi-code.rb && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/kimi-code.rb
+          git commit -m "kimi-code $(ruby -ne 'puts $1 if /version "([^"]+)"/' Casks/kimi-code.rb)"
+          git pull --rebase origin "${{ github.event.repository.default_branch }}"
+          git push origin "HEAD:${{ github.event.repository.default_branch }}"
