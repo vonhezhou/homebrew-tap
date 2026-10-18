@@ -1,0 +1,51 @@
+name: Update NetEase Cloud Music cask
+
+on:
+  schedule:
+    # Daily at 11:47 Asia/Shanghai.
+    - cron: "47 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-neteasemusic
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Test updater
+        run: |
+          gem install minitest --version '~> 5.0' --no-document
+          ruby test/update-neteasemusic_test.rb
+
+      - name: Check official releases and verify both archives
+        run: ruby scripts/update-neteasemusic.rb
+
+      - name: Validate cask syntax
+        run: ruby -c Casks/neteasemusic.rb
+
+      - name: Commit cask update
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git diff --quiet -- Casks/neteasemusic.rb && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/neteasemusic.rb
+          git commit -m "neteasemusic $(ruby -ne 'puts $1 if /version "([^"]+)"/' Casks/neteasemusic.rb)"
+          git pull --rebase origin "$DEFAULT_BRANCH"
+          git push origin "HEAD:$DEFAULT_BRANCH"
