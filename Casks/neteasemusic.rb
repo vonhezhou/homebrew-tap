@@ -1,9 +1,9 @@
 cask "neteasemusic" do
   arch arm: "arm64", intel: "x86_64"
 
-  version "3.1.13,3451"
-  sha256 arm:   "174dd785bec770ce1451a8bbef56cc2b89bda9df8e9be2ba2d46e4bc893fec84",
-         intel: "b5e099d9aec3e3fdcd63c9adef93c478f924d13dc587ebe97152434afb2fc65e"
+  version "3.1.14,3459"
+  sha256 arm:   "fb4c990c7c92451600945441c9a8ecd8b456427b33f93000f5fb21e6fc7d4df5",
+         intel: "facfcc644c6ad931d376294d88d27746a3279d12e5ecb796213bec5423d93395"
 
   url "https://d1.music.126.net/dmusic/NeteaseCloudMusic_Music_official_#{version.csv.first}.#{version.csv.second}_#{arch}.dmg",
       user_agent: :browser
