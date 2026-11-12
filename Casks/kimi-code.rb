@@ -1,7 +1,7 @@
 cask "kimi-code" do
-  version "1.3.3"
+  version "1.3.4"
 
-  sha256 "217bc4cb4a85664aff76d6b03f5794e54c04532a01747667e322bab726caea55"
+  sha256 "33886097816106109c2b02a991f265e43680c2f7787889572ef48e002bee4604"
 
   url "https://code.kimi.com/kimi-code/desktop/binaries/#{version}/KimiCode-#{version}-mac-arm64.dmg"
   name "Kimi Code"
