@@ -1,0 +1,82 @@
+name: Update Procexp-Mac cask
+
+on:
+  schedule:
+    # Daily at 12:17 Asia/Shanghai.
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-procexp-mac
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Fetch official stable release and verify installer
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release="$(gh api repos/microsoft/Procexp-Mac/releases/latest)"
+          version="$(jq -er 'select(.draft == false and .prerelease == false) | .tag_name' <<<"$release")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          url="https://github.com/microsoft/Procexp-Mac/releases/download/$version/ProcExp-$version.dmg"
+          sha="$(jq -er --arg name "ProcExp-$version.dmg" --arg url "$url" '
+            [.assets[] | select(.name == $name and .browser_download_url == $url and .state == "uploaded")]
+            | select(length == 1) | .[0].digest | select(type == "string") | sub("^sha256:"; "")
+          ' <<<"$release")"
+          [[ "$sha" =~ ^[0-9a-f]{64}$ ]]
+          installer="$(mktemp)"
+          trap 'rm -f "$installer"' EXIT
+          curl --fail --location --silent --show-error --retry 3 --connect-timeout 30 --max-time 600 \
+            --proto '=https' --proto-redir '=https' "$url" --output "$installer"
+          echo "$sha  $installer" | sha256sum --check --strict
+          {
+            echo "version=$version"
+            echo "sha=$sha"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update cask definition
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          SHA: ${{ steps.release.outputs.sha }}
+        run: |
+          ruby <<'RUBY'
+          path = "Casks/procexp-mac.rb"
+          content = File.read(path)
+          version_pattern = /^  version "([0-9]+\.[0-9]+\.[0-9]+)"$/
+          checksum_pattern = /^  sha256 "[0-9a-f]{64}"$/
+          versions = content.scan(version_pattern)
+          abort "Cannot find unique cask version" unless versions.length == 1
+          abort "Cannot find unique cask checksum" unless content.scan(checksum_pattern).length == 1
+          version = ENV.fetch("VERSION")
+          exit if Gem::Version.new(version) <= Gem::Version.new(versions.first.first)
+          content.sub!(version_pattern, "  version \"#{version}\"")
+          content.sub!(checksum_pattern, "  sha256 \"#{ENV.fetch("SHA")}\"")
+          File.write(path, content)
+          RUBY
+
+      - name: Validate cask syntax
+        run: ruby -c Casks/procexp-mac.rb
+
+      - name: Commit cask update
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git diff --quiet -- Casks/procexp-mac.rb && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/procexp-mac.rb
+          git commit -m "procexp-mac $(ruby -ne 'puts $1 if /version "([^"]+)"/' Casks/procexp-mac.rb)"
+          git pull --rebase origin "$DEFAULT_BRANCH"
+          git push origin "HEAD:$DEFAULT_BRANCH"
