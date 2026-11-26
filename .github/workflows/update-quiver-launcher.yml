@@ -1,0 +1,87 @@
+name: Update Quiver Launcher cask
+
+on:
+  schedule:
+    # Daily at 12:27 Asia/Shanghai.
+    - cron: "27 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-quiver-launcher
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+
+      - name: Fetch official stable release and verify both archives
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release="$(gh api repos/tgeorgiadis/quiver-launcher/releases/latest)"
+          version="$(jq -er 'select(.draft == false and .prerelease == false) | .tag_name | ltrimstr("v")' <<<"$release")"
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          archive="$(mktemp)"
+          trap 'rm -f "$archive"' EXIT
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          for arch in arm64 x64; do
+            name="QuiverLauncher-osx-$arch-Portable.zip"
+            url="https://github.com/tgeorgiadis/quiver-launcher/releases/download/v$version/$name"
+            sha="$(jq -er --arg name "$name" --arg url "$url" '
+              [.assets[] | select(.name == $name and .browser_download_url == $url and .state == "uploaded")]
+              | select(length == 1) | .[0].digest | select(type == "string") | sub("^sha256:"; "")
+            ' <<<"$release")"
+            [[ "$sha" =~ ^[0-9a-f]{64}$ ]]
+            curl --fail --location --silent --show-error --connect-timeout 30 --max-time 600 \
+              --proto '=https' --proto-redir '=https' "$url" --output "$archive"
+            echo "$sha  $archive" | sha256sum --check --strict
+            echo "${arch}_sha=$sha" >> "$GITHUB_OUTPUT"
+          done
+
+      - name: Update cask definition
+        env:
+          VERSION: ${{ steps.release.outputs.version }}
+          ARM_SHA: ${{ steps.release.outputs.arm64_sha }}
+          INTEL_SHA: ${{ steps.release.outputs.x64_sha }}
+        run: |
+          ruby <<'RUBY'
+          path = "Casks/quiver-launcher.rb"
+          content = File.read(path)
+          version_pattern = /^  version "([0-9]+\.[0-9]+\.[0-9]+)"$/
+          arm_pattern = /^  sha256 arm:   "[0-9a-f]{64}",$/
+          intel_pattern = /^         intel: "[0-9a-f]{64}"$/
+          versions = content.scan(version_pattern)
+          abort "Cannot find unique cask version" unless versions.length == 1
+          abort "Cannot find unique arm64 checksum" unless content.scan(arm_pattern).length == 1
+          abort "Cannot find unique x64 checksum" unless content.scan(intel_pattern).length == 1
+          version = ENV.fetch("VERSION")
+          exit if Gem::Version.new(version) <= Gem::Version.new(versions.first.first)
+          content.sub!(version_pattern, "  version \"#{version}\"")
+          content.sub!(arm_pattern, "  sha256 arm:   \"#{ENV.fetch("ARM_SHA")}\",")
+          content.sub!(intel_pattern, "         intel: \"#{ENV.fetch("INTEL_SHA")}\"")
+          File.write(path, content)
+          RUBY
+
+      - name: Validate cask syntax
+        run: ruby -c Casks/quiver-launcher.rb
+
+      - name: Commit cask update
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          git diff --quiet -- Casks/quiver-launcher.rb && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Casks/quiver-launcher.rb
+          git commit -m "quiver-launcher $(ruby -ne 'puts $1 if /version "([^\"]+)"/' Casks/quiver-launcher.rb)"
+          git pull --rebase origin "$DEFAULT_BRANCH"
+          git push origin "HEAD:$DEFAULT_BRANCH"
